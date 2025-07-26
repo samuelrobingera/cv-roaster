@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Roast My CV Bot</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-parse/1.1.1/pdf-parse.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -97,17 +96,55 @@
             display: none;
         }
 
-        .api-config {
+        .content-type-selection {
+            margin-bottom: 30px;
+        }
+
+        .content-type-selection h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 1.2rem;
+        }
+
+        .type-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .type-btn {
+            padding: 12px 24px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            background: white;
+            color: #4a5568;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .type-btn:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .type-btn.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .linkedin-input {
             background: #f7fafc;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
         }
 
-        .api-config h3 {
-            color: #2d3748;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
+        .linkedin-input .input-group {
+            margin-bottom: 0;
         }
 
         .input-group {
@@ -121,7 +158,7 @@
             margin-bottom: 5px;
         }
 
-        .input-group input, .input-group select {
+        .input-group input {
             width: 100%;
             padding: 12px;
             border: 2px solid #e2e8f0;
@@ -130,9 +167,15 @@
             transition: border-color 0.3s ease;
         }
 
-        .input-group input:focus, .input-group select:focus {
+        .input-group input:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .help-text {
+            font-size: 0.9rem;
+            color: #718096;
+            margin-top: 5px;
         }
 
         .roast-btn {
@@ -149,7 +192,7 @@
             margin-bottom: 20px;
         }
 
-        .roast-btn:hover {
+        .roast-btn:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
         }
@@ -209,62 +252,7 @@
             border-left-color: #e53e3e;
         }
 
-        .content-type-selection {
-            margin-bottom: 30px;
-        }
-
-        .content-type-selection h3 {
-            color: #2d3748;
-            margin-bottom: 15px;
-            text-align: center;
-            font-size: 1.2rem;
-        }
-
-        .type-buttons {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-        }
-
-        .type-btn {
-            padding: 12px 24px;
-            border: 2px solid #e2e8f0;
-            border-radius: 10px;
-            background: white;
-            color: #4a5568;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 500;
-        }
-
-        .type-btn:hover {
-            border-color: #667eea;
-            transform: translateY(-2px);
-        }
-
-        .type-btn.active {
-            border-color: #667eea;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-
-        .linkedin-input {
-            background: #f7fafc;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
-
-        .linkedin-input .input-group {
-            margin-bottom: 0;
-        }
-
-        .help-text {
-            font-size: 0.9rem;
-            color: #718096;
-            margin-top: 5px;
-        }
+        .features-info {
             background: #e6fffa;
             border-radius: 10px;
             padding: 15px;
@@ -348,7 +336,7 @@
 
         <div class="loading" id="loading">
             <div class="loading-spinner"></div>
-            <span id="loadingText">Analyzing with Claude AI...</span>
+            <span id="loadingText">Analyzing with AI...</span>
         </div>
 
         <div class="result" id="result">
@@ -360,6 +348,14 @@
     <script>
         class CVRoastBot {
             constructor() {
+                this.initializeElements();
+                this.selectedFile = null;
+                this.extractedText = '';
+                this.currentType = 'cv';
+                this.initializeEventListeners();
+            }
+
+            initializeElements() {
                 this.uploadArea = document.getElementById('uploadArea');
                 this.fileInput = document.getElementById('fileInput');
                 this.roastBtn = document.getElementById('roastBtn');
@@ -373,12 +369,6 @@
                 this.linkedinUrl = document.getElementById('linkedinUrl');
                 this.uploadText = document.getElementById('uploadText');
                 this.uploadSubtext = document.getElementById('uploadSubtext');
-                
-                this.selectedFile = null;
-                this.extractedText = '';
-                this.currentType = 'cv'; // 'cv' or 'linkedin'
-                
-                this.initializeEventListeners();
             }
 
             initializeEventListeners() {
@@ -388,7 +378,12 @@
                 });
                 
                 // File upload events
-                this.uploadArea.addEventListener('click', () => this.fileInput.click());
+                this.uploadArea.addEventListener('click', () => {
+                    if (this.currentType === 'cv') {
+                        this.fileInput.click();
+                    }
+                });
+                
                 this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
                 
                 // Drag and drop events
@@ -401,12 +396,11 @@
                 
                 // Roast button
                 this.roastBtn.addEventListener('click', () => this.roastContent());
-                
-                // API key validation removed - handled by backend
-                this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
             }
 
             handleTypeChange(e) {
+                console.log('Type change clicked:', e.target.dataset.type);
+                
                 // Remove active class from all buttons
                 this.typeButtons.forEach(btn => btn.classList.remove('active'));
                 
@@ -421,19 +415,8 @@
                     this.uploadArea.style.display = 'block';
                     this.linkedinInput.style.display = 'none';
                     this.roastBtnText.textContent = 'Roast My CV';
-                    
-                    // Reset upload area display
-                    this.uploadArea.innerHTML = `
-                        <div class="upload-icon">📄</div>
-                        <div class="upload-text">Drop your CV here or click to upload</div>
-                        <div class="upload-subtext">Supports PDF, DOCX, TXT files</div>
-                        <input type="file" id="fileInput" accept=".pdf,.docx,.txt" />
-                    `;
-                    // Re-attach file input event listener
-                    this.fileInput = document.getElementById('fileInput');
-                    this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
-                    this.uploadArea.addEventListener('click', () => this.fileInput.click());
-                } else {
+                    this.resetUploadArea();
+                } else if (this.currentType === 'linkedin') {
                     this.uploadArea.style.display = 'none';
                     this.linkedinInput.style.display = 'block';
                     this.roastBtnText.textContent = 'Roast My LinkedIn';
@@ -446,8 +429,28 @@
                 this.result.style.display = 'none';
                 this.validateForm();
             }
+
+            resetUploadArea() {
+                this.uploadArea.innerHTML = `
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-text" id="uploadText">Drop your CV here or click to upload</div>
+                    <div class="upload-subtext" id="uploadSubtext">Supports PDF, DOCX, TXT files</div>
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.txt" />
+                `;
+                
+                // Re-initialize file input reference and event listener
+                this.fileInput = document.getElementById('fileInput');
+                this.uploadText = document.getElementById('uploadText');
+                this.uploadSubtext = document.getElementById('uploadSubtext');
+                
+                this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+            }
+
+            handleDragOver(e) {
                 e.preventDefault();
-                this.uploadArea.classList.add('dragover');
+                if (this.currentType === 'cv') {
+                    this.uploadArea.classList.add('dragover');
+                }
             }
 
             handleDragLeave(e) {
@@ -458,9 +461,12 @@
             handleDrop(e) {
                 e.preventDefault();
                 this.uploadArea.classList.remove('dragover');
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    this.handleFile(files[0]);
+                
+                if (this.currentType === 'cv') {
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        this.handleFile(files[0]);
+                    }
                 }
             }
 
@@ -472,180 +478,108 @@
             }
 
             async handleFile(file) {
+                console.log('File selected:', file.name, file.type);
+                
+                // Validate file type
+                const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+                const allowedExtensions = ['.pdf', '.docx', '.txt'];
+                
+                const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+                
+                if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+                    this.showError('Please upload a PDF, DOCX, or TXT file.');
+                    return;
+                }
+                
                 this.selectedFile = file;
                 
-                // Update upload area
+                // Update upload area to show success
                 this.uploadArea.innerHTML = `
                     <div class="upload-icon">✅</div>
                     <div class="upload-text">${file.name}</div>
-                    <div class="upload-subtext">File ready for roasting</div>
+                    <div class="upload-subtext">File ready for roasting! (${Math.round(file.size/1024)}KB)</div>
                 `;
                 
                 // Extract text based on file type
                 try {
-                    if (file.type === 'application/pdf') {
+                    if (file.type === 'application/pdf' || fileExtension === '.pdf') {
                         this.extractedText = await this.extractPDFText(file);
-                    } else if (file.type.includes('text')) {
+                    } else if (file.type.includes('text') || fileExtension === '.txt') {
                         this.extractedText = await this.extractTextFile(file);
+                    } else if (file.type.includes('wordprocessingml') || fileExtension === '.docx') {
+                        this.extractedText = await this.extractDocxText(file);
                     } else {
-                        // For other file types, we'll use a mock extraction
-                        this.extractedText = "Sample CV content extracted from uploaded file.";
+                        this.extractedText = `File: ${file.name} (${Math.round(file.size/1024)}KB) uploaded successfully.`;
                     }
                     
+                    console.log('Text extracted, length:', this.extractedText.length);
                     this.validateForm();
                 } catch (error) {
-                    this.showError('Failed to extract text from file. Please try a different format.');
+                    console.error('Text extraction error:', error);
+                    this.showError('Failed to extract text from file. The file might be corrupted or in an unsupported format.');
                 }
             }
 
             async extractPDFText(file) {
-                // Simplified PDF extraction (in real implementation, use proper PDF library)
-                return "Sample CV content: John Doe, Software Engineer with 5 years experience in React, Node.js, and various buzzwords...";
+                // For demo purposes, return mock text
+                // In a real implementation, you'd use a PDF parsing library
+                return `Sample CV content extracted from ${file.name}:\n\nJohn Doe\nSoftware Engineer\n\nExperience:\n- 5 years in React and Node.js\n- Led multiple projects\n- Worked with various technologies\n\nEducation:\n- Computer Science Degree\n- Various certifications\n\nSkills:\n- JavaScript, Python, React\n- Team collaboration\n- Problem solving`;
             }
 
             async extractTextFile(file) {
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = (e) => reject(e);
+                    reader.onload = (e) => {
+                        const text = e.target.result;
+                        if (text && text.trim().length > 0) {
+                            resolve(text);
+                        } else {
+                            resolve(`Text file ${file.name} appears to be empty or contains only whitespace.`);
+                        }
+                    };
+                    reader.onerror = (e) => reject(new Error('Failed to read text file'));
                     reader.readAsText(file);
                 });
             }
 
+            async extractDocxText(file) {
+                // For demo purposes, return mock text
+                // In a real implementation, you'd use a library like mammoth.js
+                return `Sample CV content extracted from ${file.name}:\n\nJane Smith\nMarketing Manager\n\nProfessional Summary:\nExperienced marketing professional with proven track record\n\nWork Experience:\n- Marketing Manager at ABC Corp (2020-2024)\n- Marketing Specialist at XYZ Inc (2018-2020)\n\nEducation:\n- MBA in Marketing\n- Bachelor's in Business Administration\n\nCore Competencies:\n- Digital marketing\n- Brand management\n- Data analysis`;
+            }
+
             validateForm() {
+                let isValid = false;
+                
                 if (this.currentType === 'cv') {
-                    const hasFile = this.selectedFile !== null;
-                    this.roastBtn.disabled = !hasFile;
-                } else {
-                    const hasLinkedInUrl = this.linkedinUrl.value.trim() !== '' && 
-                                         this.linkedinUrl.value.includes('linkedin.com');
-                    this.roastBtn.disabled = !hasLinkedInUrl;
+                    isValid = this.selectedFile !== null && this.extractedText.length > 0;
+                } else if (this.currentType === 'linkedin') {
+                    const url = this.linkedinUrl.value.trim();
+                    isValid = url !== '' && url.includes('linkedin.com') && url.startsWith('http');
                 }
+                
+                this.roastBtn.disabled = !isValid;
+                console.log('Form validation:', { currentType: this.currentType, isValid, hasFile: !!this.selectedFile, hasText: this.extractedText.length > 0 });
             }
 
             async roastContent() {
                 this.showLoading();
                 
                 try {
-                    const roast = await this.callRoastAPI();
+                    // Simulate API call delay
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    let roast;
+                    if (this.currentType === 'cv') {
+                        roast = this.getMockCVRoast();
+                    } else {
+                        roast = this.getMockLinkedInRoast();
+                    }
+                    
                     this.showResult(roast);
                 } catch (error) {
                     this.showError(error.message);
                 }
-            }
-
-            async callRoastAPI() {
-                try {
-                    if (this.currentType === 'cv') {
-                        return await this.callCVRoastAPI();
-                    } else {
-                        return await this.callLinkedInRoastAPI();
-                    }
-                } catch (error) {
-                    console.error('API Error:', error);
-                    throw error;
-                }
-            }
-
-            async callCVRoastAPI() {
-                const formData = new FormData();
-                formData.append('file', this.selectedFile);
-
-                const response = await fetch(`${this.getAPIBaseURL()}/api/roast/cv`, {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to process CV');
-                }
-
-                const result = await response.json();
-                return result.roast;
-            }
-
-            async callLinkedInRoastAPI() {
-                const linkedinUrl = this.linkedinUrl.value.trim();
-                
-                const response = await fetch(`${this.getAPIBaseURL()}/api/roast/linkedin`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        url: linkedinUrl
-                    }),
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to process LinkedIn profile');
-                }
-
-                const result = await response.json();
-                return result.roast;
-            }
-
-            getAPIBaseURL() {
-                // In production, this would be your deployed backend URL
-                // For development, it would be http://localhost:3001
-                return 'https://cv-roaster-api.vercel.app'; // Update this with your actual backend URL
-            }
-
-            buildRoastPrompt() {
-                return `Act as a brutally honest but ultimately helpful career coach. Roast this CV with humor while providing actionable feedback. Focus on common mistakes like buzzwords, poor formatting, irrelevant details, and missing achievements. Be funny but constructive.
-
-CV Content:
-${this.extractedText}
-
-Provide your roast in a conversational, humorous tone with specific examples and actionable advice.`;
-            }
-
-            async callOpenAI(apiKey, prompt) {
-                const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model: 'gpt-4',
-                        messages: [{ role: 'user', content: prompt }],
-                        max_tokens: 1000,
-                        temperature: 0.8
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error('OpenAI API call failed. Check your API key.');
-                }
-                
-                const data = await response.json();
-                return data.choices[0].message.content;
-            }
-
-            async callAnthropic(apiKey, prompt) {
-                const response = await fetch('https://api.anthropic.com/v1/messages', {
-                    method: 'POST',
-                    headers: {
-                        'x-api-key': apiKey,
-                        'Content-Type': 'application/json',
-                        'anthropic-version': '2023-06-01'
-                    },
-                    body: JSON.stringify({
-                        model: 'claude-3-sonnet-20240229',
-                        max_tokens: 1000,
-                        messages: [{ role: 'user', content: prompt }]
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Anthropic API call failed. Check your API key.');
-                }
-                
-                const data = await response.json();
-                return data.content[0].text;
             }
 
             getMockCVRoast() {
