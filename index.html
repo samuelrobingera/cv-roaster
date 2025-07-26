@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roast My CV Bot</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-parse/1.1.1/pdf-parse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            color: #2d3748;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 1.1rem;
+        }
+
+        .upload-area {
+            border: 3px dashed #cbd5e0;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #a0aec0;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #4a5568;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .upload-subtext {
+            color: #a0aec0;
+            font-size: 0.9rem;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .api-config {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .api-config h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            color: #4a5568;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .roast-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .roast-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .roast-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            border-left: 5px solid #667eea;
+        }
+
+        .result h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .result-content {
+            color: #4a5568;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .error {
+            background: #fed7d7;
+            border-left-color: #e53e3e;
+        }
+
+        .features-info {
+            background: #e6fffa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #38b2ac;
+        }
+
+        .features-info h4 {
+            color: #234e52;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .features-info p {
+            color: #2c7a7b;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 25px;
+                margin: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔥 Roast My CV</h1>
+            <p>Get brutally honest feedback on your resume</p>
+        </div>
+
+        <div class="features-info">
+            <h4>✨ Why Use This?</h4>
+            <p>AI-powered feedback • Brutally honest • Actionable advice • Completely free</p>
+        </div>
+
+        <!-- API config hidden from user - handled by backend -->
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">Drop your CV here or click to upload</div>
+            <div class="upload-subtext">Supports PDF, DOCX, TXT files</div>
+            <input type="file" id="fileInput" accept=".pdf,.docx,.txt" />
+        </div>
+
+        <button class="roast-btn" id="roastBtn" disabled>
+            🔥 Roast My CV
+        </button>
+
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            Analyzing your CV with AI...
+        </div>
+
+        <div class="result" id="result">
+            <h3 id="resultTitle">🎯 The Roast</h3>
+            <div class="result-content" id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        class CVRoastBot {
+            constructor() {
+                this.uploadArea = document.getElementById('uploadArea');
+                this.fileInput = document.getElementById('fileInput');
+                this.roastBtn = document.getElementById('roastBtn');
+                this.loading = document.getElementById('loading');
+                this.result = document.getElementById('result');
+                this.resultContent = document.getElementById('resultContent');
+                this.resultTitle = document.getElementById('resultTitle');
+                this.apiProvider = document.getElementById('apiProvider');
+                this.apiKey = document.getElementById('apiKey');
+                
+                this.selectedFile = null;
+                this.extractedText = '';
+                
+                this.initializeEventListeners();
+            }
+
+            initializeEventListeners() {
+                // File upload events
+                this.uploadArea.addEventListener('click', () => this.fileInput.click());
+                this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+                
+                // Drag and drop events
+                this.uploadArea.addEventListener('dragover', (e) => this.handleDragOver(e));
+                this.uploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+                this.uploadArea.addEventListener('drop', (e) => this.handleDrop(e));
+                
+                // Roast button
+                this.roastBtn.addEventListener('click', () => this.roastCV());
+                
+                // API key validation removed - handled by backend
+                this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+            }
+
+            handleDragOver(e) {
+                e.preventDefault();
+                this.uploadArea.classList.add('dragover');
+            }
+
+            handleDragLeave(e) {
+                e.preventDefault();
+                this.uploadArea.classList.remove('dragover');
+            }
+
+            handleDrop(e) {
+                e.preventDefault();
+                this.uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.handleFile(files[0]);
+                }
+            }
+
+            handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    this.handleFile(file);
+                }
+            }
+
+            async handleFile(file) {
+                this.selectedFile = file;
+                
+                // Update upload area
+                this.uploadArea.innerHTML = `
+                    <div class="upload-icon">✅</div>
+                    <div class="upload-text">${file.name}</div>
+                    <div class="upload-subtext">File ready for roasting</div>
+                `;
+                
+                // Extract text based on file type
+                try {
+                    if (file.type === 'application/pdf') {
+                        this.extractedText = await this.extractPDFText(file);
+                    } else if (file.type.includes('text')) {
+                        this.extractedText = await this.extractTextFile(file);
+                    } else {
+                        // For other file types, we'll use a mock extraction
+                        this.extractedText = "Sample CV content extracted from uploaded file.";
+                    }
+                    
+                    this.validateForm();
+                } catch (error) {
+                    this.showError('Failed to extract text from file. Please try a different format.');
+                }
+            }
+
+            async extractPDFText(file) {
+                // Simplified PDF extraction (in real implementation, use proper PDF library)
+                return "Sample CV content: John Doe, Software Engineer with 5 years experience in React, Node.js, and various buzzwords...";
+            }
+
+            async extractTextFile(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = (e) => reject(e);
+                    reader.readAsText(file);
+                });
+            }
+
+            validateForm() {
+                const hasFile = this.selectedFile !== null;
+                this.roastBtn.disabled = !hasFile;
+            }
+
+            async roastCV() {
+                this.showLoading();
+                
+                try {
+                    const roast = await this.callRoastAPI();
+                    this.showResult(roast);
+                } catch (error) {
+                    this.showError(error.message);
+                }
+            }
+
+            async callRoastAPI() {
+                // In production, this would call your backend microservice
+                // Backend handles provider selection, API keys, rate limiting, etc.
+                
+                // For MVP demo, using mock responses
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                return this.getMockRoast();
+            }
+
+            buildRoastPrompt() {
+                return `Act as a brutally honest but ultimately helpful career coach. Roast this CV with humor while providing actionable feedback. Focus on common mistakes like buzzwords, poor formatting, irrelevant details, and missing achievements. Be funny but constructive.
+
+CV Content:
+${this.extractedText}
+
+Provide your roast in a conversational, humorous tone with specific examples and actionable advice.`;
+            }
+
+            async callOpenAI(apiKey, prompt) {
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4',
+                        messages: [{ role: 'user', content: prompt }],
+                        max_tokens: 1000,
+                        temperature: 0.8
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('OpenAI API call failed. Check your API key.');
+                }
+                
+                const data = await response.json();
+                return data.choices[0].message.content;
+            }
+
+            async callAnthropic(apiKey, prompt) {
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'x-api-key': apiKey,
+                        'Content-Type': 'application/json',
+                        'anthropic-version': '2023-06-01'
+                    },
+                    body: JSON.stringify({
+                        model: 'claude-3-sonnet-20240229',
+                        max_tokens: 1000,
+                        messages: [{ role: 'user', content: prompt }]
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Anthropic API call failed. Check your API key.');
+                }
+                
+                const data = await response.json();
+                return data.content[0].text;
+            }
+
+            getMockRoast() {
+                const roasts = [
+                    `🔥 OH BOY, where do I even START with this masterpiece?
+
+First off, I see you've mastered the art of buzzword bingo! "Synergistic solutions," "thought leadership," and "paradigm shifts" - did you copy-paste this from a corporate BS generator? 
+
+Your experience section reads like: "Responsible for things. Did stuff. Very important stuff." Be specific! Instead of "managed projects," tell me you "led a 5-person team that increased user engagement by 40%."
+
+And can we talk about that skills section? You listed "Microsoft Office" as a skill in 2024. That's like putting "can breathe oxygen" on your CV. 
+
+BUT here's the good news - I can see potential buried under all this corporate speak. Your actual achievements are solid, they just need to see daylight!
+
+💡 Quick fixes:
+- Replace buzzwords with specific metrics
+- Use action verbs (led, built, achieved)
+- Quantify everything with numbers
+- Remove outdated "skills" like basic software
+- Add a personal project that shows passion
+
+You're not hopeless, just corporate-washed! 😄`,
+
+                    `🎯 Well well well, another "results-driven professional" has graced my inbox!
+
+Listen friend, your CV is like a beige wallpaper - technically functional but puts everyone to sleep. Let's wake this thing up!
+
+Your summary is 4 lines of nothing. "Experienced professional seeking opportunities" - WOW, groundbreaking! Every CV says this. Tell me what makes YOU different in 2 sentences max.
+
+Work experience needs CPR:
+- "Collaborated with teams" → "Led cross-functional team of 8 to launch product 2 weeks ahead of schedule"
+- "Improved processes" → "Redesigned onboarding process, reducing new hire ramp-up time by 50%"
+
+Your education section is longer than your achievements. Unless you're a recent grad, flip that ratio!
+
+🚀 The Fix:
+1. Lead with impact, not duties
+2. Numbers are your best friend
+3. Show progression in your career
+4. Cut the fluff, add the stuff that matters
+5. Make it scannable - recruiters spend 6 seconds on each CV
+
+You've got the experience, now make it SHINE! ✨`
+                ];
+                
+                return roasts[Math.floor(Math.random() * roasts.length)];
+            }
+
+            showLoading() {
+                this.loading.style.display = 'block';
+                this.result.style.display = 'none';
+                this.roastBtn.disabled = true;
+            }
+
+            showResult(content) {
+                this.loading.style.display = 'none';
+                this.result.style.display = 'block';
+                this.result.classList.remove('error');
+                this.resultTitle.textContent = '🎯 The Roast';
+                this.resultContent.textContent = content;
+                this.roastBtn.disabled = false;
+            }
+
+            showError(message) {
+                this.loading.style.display = 'none';
+                this.result.style.display = 'block';
+                this.result.classList.add('error');
+                this.resultTitle.textContent = '❌ Error';
+                this.resultContent.textContent = message;
+                this.roastBtn.disabled = false;
+            }
+        }
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', () => {
+            new CVRoastBot();
+        });
+    </script>
+</body>
+</html>
