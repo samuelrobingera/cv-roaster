@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "name": "cv-roaster-api",
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/server.js"
+    }
+  ],
+  "env": {
+    "ANTHROPIC_API_KEY": "@anthropic-api-key",
+    "FRONTEND_URL": "@frontend-url",
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "server.js": {
+      "maxDuration": 30
+    }
+  }
+}
