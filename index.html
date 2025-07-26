@@ -209,7 +209,62 @@
             border-left-color: #e53e3e;
         }
 
-        .features-info {
+        .content-type-selection {
+            margin-bottom: 30px;
+        }
+
+        .content-type-selection h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 1.2rem;
+        }
+
+        .type-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .type-btn {
+            padding: 12px 24px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            background: white;
+            color: #4a5568;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .type-btn:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .type-btn.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .linkedin-input {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .linkedin-input .input-group {
+            margin-bottom: 0;
+        }
+
+        .help-text {
+            font-size: 0.9rem;
+            color: #718096;
+            margin-top: 5px;
+        }
             background: #e6fffa;
             border-radius: 10px;
             padding: 15px;
@@ -238,37 +293,62 @@
             .header h1 {
                 font-size: 2rem;
             }
+            
+            .type-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .type-btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔥 Roast My CV</h1>
-            <p>Get brutally honest feedback on your resume</p>
+            <h1>🔥 Roast My Profile</h1>
+            <p>Get brutally honest feedback on your CV or LinkedIn profile</p>
         </div>
 
         <div class="features-info">
             <h4>✨ Why Use This?</h4>
-            <p>AI-powered feedback • Brutally honest • Actionable advice • Completely free</p>
+            <p>AI-powered feedback • Brutally honest • Actionable advice for CVs & LinkedIn • Completely free</p>
         </div>
 
-        <!-- API config hidden from user - handled by backend -->
+        <!-- Content Type Selection -->
+        <div class="content-type-selection">
+            <h3>What would you like to roast?</h3>
+            <div class="type-buttons">
+                <button class="type-btn active" data-type="cv">📄 CV/Resume</button>
+                <button class="type-btn" data-type="linkedin">💼 LinkedIn Profile</button>
+            </div>
+        </div>
 
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📄</div>
-            <div class="upload-text">Drop your CV here or click to upload</div>
-            <div class="upload-subtext">Supports PDF, DOCX, TXT files</div>
+            <div class="upload-text" id="uploadText">Drop your CV here or click to upload</div>
+            <div class="upload-subtext" id="uploadSubtext">Supports PDF, DOCX, TXT files</div>
             <input type="file" id="fileInput" accept=".pdf,.docx,.txt" />
         </div>
 
+        <!-- LinkedIn URL Input (hidden by default) -->
+        <div class="linkedin-input" id="linkedinInput" style="display: none;">
+            <div class="input-group">
+                <label for="linkedinUrl">LinkedIn Profile URL</label>
+                <input type="url" id="linkedinUrl" placeholder="https://linkedin.com/in/your-profile" />
+                <div class="help-text">Paste your LinkedIn profile URL (make sure it's public)</div>
+            </div>
+        </div>
+
         <button class="roast-btn" id="roastBtn" disabled>
-            🔥 Roast My CV
+            🔥 <span id="roastBtnText">Roast My CV</span>
         </button>
 
         <div class="loading" id="loading">
             <div class="loading-spinner"></div>
-            Analyzing your CV with AI...
+            <span id="loadingText">Analyzing with Claude AI...</span>
         </div>
 
         <div class="result" id="result">
@@ -283,20 +363,30 @@
                 this.uploadArea = document.getElementById('uploadArea');
                 this.fileInput = document.getElementById('fileInput');
                 this.roastBtn = document.getElementById('roastBtn');
+                this.roastBtnText = document.getElementById('roastBtnText');
                 this.loading = document.getElementById('loading');
                 this.result = document.getElementById('result');
                 this.resultContent = document.getElementById('resultContent');
                 this.resultTitle = document.getElementById('resultTitle');
-                this.apiProvider = document.getElementById('apiProvider');
-                this.apiKey = document.getElementById('apiKey');
+                this.typeButtons = document.querySelectorAll('.type-btn');
+                this.linkedinInput = document.getElementById('linkedinInput');
+                this.linkedinUrl = document.getElementById('linkedinUrl');
+                this.uploadText = document.getElementById('uploadText');
+                this.uploadSubtext = document.getElementById('uploadSubtext');
                 
                 this.selectedFile = null;
                 this.extractedText = '';
+                this.currentType = 'cv'; // 'cv' or 'linkedin'
                 
                 this.initializeEventListeners();
             }
 
             initializeEventListeners() {
+                // Content type selection
+                this.typeButtons.forEach(btn => {
+                    btn.addEventListener('click', (e) => this.handleTypeChange(e));
+                });
+                
                 // File upload events
                 this.uploadArea.addEventListener('click', () => this.fileInput.click());
                 this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
@@ -306,14 +396,56 @@
                 this.uploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
                 this.uploadArea.addEventListener('drop', (e) => this.handleDrop(e));
                 
+                // LinkedIn URL input
+                this.linkedinUrl.addEventListener('input', () => this.validateForm());
+                
                 // Roast button
-                this.roastBtn.addEventListener('click', () => this.roastCV());
+                this.roastBtn.addEventListener('click', () => this.roastContent());
                 
                 // API key validation removed - handled by backend
                 this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
             }
 
-            handleDragOver(e) {
+            handleTypeChange(e) {
+                // Remove active class from all buttons
+                this.typeButtons.forEach(btn => btn.classList.remove('active'));
+                
+                // Add active class to clicked button
+                e.target.classList.add('active');
+                
+                // Update current type
+                this.currentType = e.target.dataset.type;
+                
+                // Show/hide appropriate input methods
+                if (this.currentType === 'cv') {
+                    this.uploadArea.style.display = 'block';
+                    this.linkedinInput.style.display = 'none';
+                    this.roastBtnText.textContent = 'Roast My CV';
+                    
+                    // Reset upload area display
+                    this.uploadArea.innerHTML = `
+                        <div class="upload-icon">📄</div>
+                        <div class="upload-text">Drop your CV here or click to upload</div>
+                        <div class="upload-subtext">Supports PDF, DOCX, TXT files</div>
+                        <input type="file" id="fileInput" accept=".pdf,.docx,.txt" />
+                    `;
+                    // Re-attach file input event listener
+                    this.fileInput = document.getElementById('fileInput');
+                    this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+                    this.uploadArea.addEventListener('click', () => this.fileInput.click());
+                } else {
+                    this.uploadArea.style.display = 'none';
+                    this.linkedinInput.style.display = 'block';
+                    this.roastBtnText.textContent = 'Roast My LinkedIn';
+                }
+                
+                // Reset form state
+                this.selectedFile = null;
+                this.extractedText = '';
+                this.linkedinUrl.value = '';
+                this.result.style.display = 'none';
+                this.validateForm();
+            }
                 e.preventDefault();
                 this.uploadArea.classList.add('dragover');
             }
@@ -381,11 +513,17 @@
             }
 
             validateForm() {
-                const hasFile = this.selectedFile !== null;
-                this.roastBtn.disabled = !hasFile;
+                if (this.currentType === 'cv') {
+                    const hasFile = this.selectedFile !== null;
+                    this.roastBtn.disabled = !hasFile;
+                } else {
+                    const hasLinkedInUrl = this.linkedinUrl.value.trim() !== '' && 
+                                         this.linkedinUrl.value.includes('linkedin.com');
+                    this.roastBtn.disabled = !hasLinkedInUrl;
+                }
             }
 
-            async roastCV() {
+            async roastContent() {
                 this.showLoading();
                 
                 try {
@@ -397,12 +535,62 @@
             }
 
             async callRoastAPI() {
-                // In production, this would call your backend microservice
-                // Backend handles provider selection, API keys, rate limiting, etc.
+                try {
+                    if (this.currentType === 'cv') {
+                        return await this.callCVRoastAPI();
+                    } else {
+                        return await this.callLinkedInRoastAPI();
+                    }
+                } catch (error) {
+                    console.error('API Error:', error);
+                    throw error;
+                }
+            }
+
+            async callCVRoastAPI() {
+                const formData = new FormData();
+                formData.append('file', this.selectedFile);
+
+                const response = await fetch(`${this.getAPIBaseURL()}/api/roast/cv`, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to process CV');
+                }
+
+                const result = await response.json();
+                return result.roast;
+            }
+
+            async callLinkedInRoastAPI() {
+                const linkedinUrl = this.linkedinUrl.value.trim();
                 
-                // For MVP demo, using mock responses
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                return this.getMockRoast();
+                const response = await fetch(`${this.getAPIBaseURL()}/api/roast/linkedin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: linkedinUrl
+                    }),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to process LinkedIn profile');
+                }
+
+                const result = await response.json();
+                return result.roast;
+            }
+
+            getAPIBaseURL() {
+                // In production, this would be your deployed backend URL
+                // For development, it would be http://localhost:3001
+                return 'https://cv-roaster-api.vercel.app'; // Update this with your actual backend URL
             }
 
             buildRoastPrompt() {
@@ -460,7 +648,7 @@ Provide your roast in a conversational, humorous tone with specific examples and
                 return data.content[0].text;
             }
 
-            getMockRoast() {
+            getMockCVRoast() {
                 const roasts = [
                     `🔥 OH BOY, where do I even START with this masterpiece?
 
@@ -504,6 +692,65 @@ You've got the experience, now make it SHINE! ✨`
                 ];
                 
                 return roasts[Math.floor(Math.random() * roasts.length)];
+            }
+
+            getMockLinkedInRoast() {
+                const linkedInRoasts = [
+                    `🔥 OH WOW, another "Passionate about leveraging synergies" headline!
+
+Let me guess - your summary starts with "Results-driven professional" and ends with "seeking new opportunities"? Original!
+
+Your experience section is a graveyard of corporate buzzwords:
+• "Spearheaded initiatives" (what initiatives? be specific!)
+• "Thought leadership in disruptive technologies" (this means nothing)
+• "Cross-functional collaboration" (you talked to other people, congrats)
+
+And can we discuss your skills endorsements? You've got "Leadership" with 5 endorsements from people who've never seen you lead anything.
+
+🎯 The LinkedIn Reality Check:
+- Your headline should say what you DO, not corporate fluff
+- Use numbers in your experience ("increased sales by 40%" not "drove growth")
+- Post actual content instead of reposting motivational quotes
+- Your photo shouldn't look like a hostage situation
+
+💡 Quick fixes:
+- Write like a human, not a corporate robot
+- Show real work examples
+- Connect with people you actually know
+- Stop saying you're "blessed" to announce job changes
+
+Your profile has potential buried under corporate BS. Time to dig it out! 🚀`,
+
+                    `🎯 Well hello there, "Innovative thought leader passionate about digital transformation"!
+
+Your LinkedIn reads like it was written by a buzzword generator having an existential crisis.
+
+Let's break down this masterpiece:
+📸 Profile photo: Why do you look surprised to be there?
+🏷️ Headline: "Experienced professional seeking opportunities" - along with 50 million others
+📝 Summary: 3 paragraphs of nothing. "Passionate about excellence" tells me zilch
+
+Your posts are even better:
+- Reposted 47 "Monday Motivation" quotes this month
+- Shared that story about the CEO who helps janitors (we've all seen it)
+- "Agree? Thoughts?" on obvious statements
+
+🔥 But here's what's really killing your profile:
+• No personality - you sound like every other LinkedIn zombie
+• No specific achievements - "managed projects" means nothing
+• Connections with random MLM people you've never met
+• Endorsing people for skills you've never seen them use
+
+💡 The Fix:
+1. Write your headline like you're introducing yourself at a party
+2. Share YOUR actual work, not recycled inspiration porn
+3. Comment with real insights, not just "Great post!"
+4. Connect with humans, not LinkedIn bots
+
+You're a real person with real skills. Let that show! ✨`
+                ];
+                
+                return linkedInRoasts[Math.floor(Math.random() * linkedInRoasts.length)];
             }
 
             showLoading() {
