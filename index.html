@@ -144,7 +144,11 @@
         }
 
         .linkedin-input .input-group {
-            margin-bottom: 0;
+            margin-bottom: 15px;
+        }
+
+        .textarea-group {
+            margin-bottom: 15px;
         }
 
         .input-group {
@@ -158,16 +162,22 @@
             margin-bottom: 5px;
         }
 
-        .input-group input {
+        .input-group input, .textarea-group textarea {
             width: 100%;
             padding: 12px;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             font-size: 1rem;
             transition: border-color 0.3s ease;
+            font-family: inherit;
         }
 
-        .input-group input:focus {
+        .textarea-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .input-group input:focus, .textarea-group textarea:focus {
             outline: none;
             border-color: #667eea;
         }
@@ -272,6 +282,25 @@
             line-height: 1.4;
         }
 
+        .debug-info {
+            background: #f0f4f8;
+            border-left: 4px solid #4299e1;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 0.85rem;
+            color: #2d3748;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .debug-toggle {
+            font-size: 0.8rem;
+            color: #718096;
+            text-decoration: underline;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
         @media (max-width: 640px) {
             .container {
                 padding: 25px;
@@ -321,12 +350,18 @@
             <input type="file" id="fileInput" accept=".pdf,.docx,.txt" />
         </div>
 
-        <!-- LinkedIn URL Input (hidden by default) -->
+        <!-- LinkedIn Input (hidden by default) -->
         <div class="linkedin-input" id="linkedinInput" style="display: none;">
             <div class="input-group">
-                <label for="linkedinUrl">LinkedIn Profile URL</label>
+                <label for="linkedinUrl">LinkedIn Profile URL (optional)</label>
                 <input type="url" id="linkedinUrl" placeholder="https://linkedin.com/in/your-profile" />
                 <div class="help-text">Paste your LinkedIn profile URL (make sure it's public)</div>
+            </div>
+            
+            <div class="textarea-group">
+                <label for="linkedinContent">Or paste your LinkedIn profile content:</label>
+                <textarea id="linkedinContent" placeholder="Copy and paste your LinkedIn headline, about section, experience, etc. This works better than just the URL since LinkedIn blocks automated scraping."></textarea>
+                <div class="help-text">Copy your headline, about section, experience descriptions, etc. from your LinkedIn profile</div>
             </div>
         </div>
 
@@ -342,10 +377,34 @@
         <div class="result" id="result">
             <h3 id="resultTitle">🎯 The Roast</h3>
             <div class="result-content" id="resultContent"></div>
+            <div class="debug-toggle" onclick="toggleDebug()">Show debug info</div>
+            <div class="debug-info" id="debugInfo"></div>
         </div>
     </div>
 
     <script>
+        let debugMode = false;
+
+        function toggleDebug() {
+            debugMode = !debugMode;
+            const debugInfo = document.getElementById('debugInfo');
+            const debugToggle = document.querySelector('.debug-toggle');
+            
+            if (debugMode) {
+                debugInfo.style.display = 'block';
+                debugToggle.textContent = 'Hide debug info';
+            } else {
+                debugInfo.style.display = 'none';
+                debugToggle.textContent = 'Show debug info';
+            }
+        }
+
+        function addDebugInfo(message) {
+            const debugInfo = document.getElementById('debugInfo');
+            const timestamp = new Date().toLocaleTimeString();
+            debugInfo.innerHTML += `[${timestamp}] ${message}<br>`;
+        }
+
         class CVRoastBot {
             constructor() {
                 this.initializeElements();
@@ -353,6 +412,9 @@
                 this.extractedText = '';
                 this.currentType = 'cv';
                 this.initializeEventListeners();
+                
+                addDebugInfo(`App initialized. Current domain: ${window.location.hostname}`);
+                addDebugInfo(`API Base URL: ${this.getAPIBaseURL()}`);
             }
 
             initializeElements() {
@@ -367,6 +429,7 @@
                 this.typeButtons = document.querySelectorAll('.type-btn');
                 this.linkedinInput = document.getElementById('linkedinInput');
                 this.linkedinUrl = document.getElementById('linkedinUrl');
+                this.linkedinContent = document.getElementById('linkedinContent');
                 this.uploadText = document.getElementById('uploadText');
                 this.uploadSubtext = document.getElementById('uploadSubtext');
             }
@@ -391,15 +454,16 @@
                 this.uploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
                 this.uploadArea.addEventListener('drop', (e) => this.handleDrop(e));
                 
-                // LinkedIn URL input
+                // LinkedIn inputs
                 this.linkedinUrl.addEventListener('input', () => this.validateForm());
+                this.linkedinContent.addEventListener('input', () => this.validateForm());
                 
                 // Roast button
                 this.roastBtn.addEventListener('click', () => this.roastContent());
             }
 
             handleTypeChange(e) {
-                console.log('Type change clicked:', e.target.dataset.type);
+                addDebugInfo(`Type change clicked: ${e.target.dataset.type}`);
                 
                 // Remove active class from all buttons
                 this.typeButtons.forEach(btn => btn.classList.remove('active'));
@@ -426,6 +490,7 @@
                 this.selectedFile = null;
                 this.extractedText = '';
                 this.linkedinUrl.value = '';
+                this.linkedinContent.value = '';
                 this.result.style.display = 'none';
                 this.validateForm();
             }
@@ -478,7 +543,7 @@
             }
 
             async handleFile(file) {
-                console.log('File selected:', file.name, file.type);
+                addDebugInfo(`File selected: ${file.name}, type: ${file.type}, size: ${Math.round(file.size/1024)}KB`);
                 
                 // Validate file type
                 const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
@@ -500,79 +565,39 @@
                     <div class="upload-subtext">File ready for roasting! (${Math.round(file.size/1024)}KB)</div>
                 `;
                 
-                // Extract text based on file type
-                try {
-                    if (file.type === 'application/pdf' || fileExtension === '.pdf') {
-                        this.extractedText = await this.extractPDFText(file);
-                    } else if (file.type.includes('text') || fileExtension === '.txt') {
-                        this.extractedText = await this.extractTextFile(file);
-                    } else if (file.type.includes('wordprocessingml') || fileExtension === '.docx') {
-                        this.extractedText = await this.extractDocxText(file);
-                    } else {
-                        this.extractedText = `File: ${file.name} (${Math.round(file.size/1024)}KB) uploaded successfully.`;
-                    }
-                    
-                    console.log('Text extracted, length:', this.extractedText.length);
-                    this.validateForm();
-                } catch (error) {
-                    console.error('Text extraction error:', error);
-                    this.showError('Failed to extract text from file. The file might be corrupted or in an unsupported format.');
-                }
-            }
-
-            async extractPDFText(file) {
-                // For demo purposes, return mock text
-                // In a real implementation, you'd use a PDF parsing library
-                return `Sample CV content extracted from ${file.name}:\n\nJohn Doe\nSoftware Engineer\n\nExperience:\n- 5 years in React and Node.js\n- Led multiple projects\n- Worked with various technologies\n\nEducation:\n- Computer Science Degree\n- Various certifications\n\nSkills:\n- JavaScript, Python, React\n- Team collaboration\n- Problem solving`;
-            }
-
-            async extractTextFile(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const text = e.target.result;
-                        if (text && text.trim().length > 0) {
-                            resolve(text);
-                        } else {
-                            resolve(`Text file ${file.name} appears to be empty or contains only whitespace.`);
-                        }
-                    };
-                    reader.onerror = (e) => reject(new Error('Failed to read text file'));
-                    reader.readAsText(file);
-                });
-            }
-
-            async extractDocxText(file) {
-                // For demo purposes, return mock text
-                // In a real implementation, you'd use a library like mammoth.js
-                return `Sample CV content extracted from ${file.name}:\n\nJane Smith\nMarketing Manager\n\nProfessional Summary:\nExperienced marketing professional with proven track record\n\nWork Experience:\n- Marketing Manager at ABC Corp (2020-2024)\n- Marketing Specialist at XYZ Inc (2018-2020)\n\nEducation:\n- MBA in Marketing\n- Bachelor's in Business Administration\n\nCore Competencies:\n- Digital marketing\n- Brand management\n- Data analysis`;
+                // For the sake of this demo, we'll just mark the file as ready
+                // In a real implementation, you'd extract text here
+                this.extractedText = `File uploaded: ${file.name}`;
+                addDebugInfo(`File processed successfully`);
+                this.validateForm();
             }
 
             validateForm() {
                 let isValid = false;
                 
                 if (this.currentType === 'cv') {
-                    isValid = this.selectedFile !== null && this.extractedText.length > 0;
+                    isValid = this.selectedFile !== null;
                 } else if (this.currentType === 'linkedin') {
                     const url = this.linkedinUrl.value.trim();
-                    isValid = url !== '' && url.includes('linkedin.com') && url.startsWith('http');
+                    const content = this.linkedinContent.value.trim();
+                    isValid = (url !== '' && url.includes('linkedin.com')) || content.length > 50;
                 }
                 
                 this.roastBtn.disabled = !isValid;
-                console.log('Form validation:', { currentType: this.currentType, isValid, hasFile: !!this.selectedFile, hasText: this.extractedText.length > 0 });
+                addDebugInfo(`Form validation: ${this.currentType} - valid: ${isValid}`);
             }
 
             async roastContent() {
                 this.showLoading();
+                addDebugInfo(`Starting roast process for ${this.currentType}`);
                 
                 try {
-                    // First, let's test if the backend is accessible
+                    // First, test backend connectivity
                     const backendUrl = this.getAPIBaseURL();
-                    console.log('🔍 Testing backend at:', backendUrl);
+                    addDebugInfo(`Testing backend connectivity at: ${backendUrl}`);
                     
-                    // Test backend connectivity
                     const testResponse = await this.testBackend(backendUrl);
-                    console.log('🔍 Backend test result:', testResponse);
+                    addDebugInfo(`Backend test result: ${JSON.stringify(testResponse)}`);
                     
                     let roast;
                     if (this.currentType === 'cv') {
@@ -583,27 +608,31 @@
                     
                     this.showResult(roast);
                 } catch (error) {
+                    addDebugInfo(`API Error: ${error.message}`);
                     console.error('❌ API Error:', error);
-                    this.showError(`API Error: ${error.message}\n\nFalling back to demo mode...`);
+                    this.showError(`Connection failed: ${error.message}\n\nFalling back to demo mode...`);
                     
                     // Fallback to mock for demo purposes
-                    let mockRoast;
-                    if (this.currentType === 'cv') {
-                        mockRoast = this.getMockCVRoast();
-                    } else {
-                        mockRoast = this.getMockLinkedInRoast();
-                    }
-                    this.showResult(`[DEMO MODE - Backend not connected]\n\n${mockRoast}`);
+                    setTimeout(() => {
+                        let mockRoast;
+                        if (this.currentType === 'cv') {
+                            mockRoast = this.getMockCVRoast();
+                        } else {
+                            mockRoast = this.getMockLinkedInRoast();
+                        }
+                        this.showResult(`[DEMO MODE - Backend not available]\n\n${mockRoast}`);
+                    }, 1000);
                 }
             }
 
             async testBackend(baseUrl) {
                 try {
-                    const response = await fetch(`${baseUrl}/health`, {
+                    const response = await fetch(`${baseUrl}/api/health`, {
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json'
-                        }
+                        },
+                        timeout: 10000
                     });
                     
                     if (response.ok) {
@@ -618,7 +647,7 @@
             }
 
             async callCVRoastAPI() {
-                console.log('📤 Making CV API call...');
+                addDebugInfo('Making CV API call...');
                 const formData = new FormData();
                 formData.append('file', this.selectedFile);
 
@@ -627,56 +656,62 @@
                     body: formData,
                 });
 
-                console.log('📥 CV API Response status:', response.status);
+                addDebugInfo(`CV API Response status: ${response.status}`);
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('❌ CV API Error response:', errorText);
-                    throw new Error(`CV API Error: ${response.status} - ${errorText}`);
+                    addDebugInfo(`CV API Error response: ${errorText}`);
+                    throw new Error(`API Error: ${response.status} - ${errorText}`);
                 }
 
                 const result = await response.json();
-                console.log('✅ CV API Success:', result);
+                addDebugInfo('CV API Success');
                 return result.roast || result.message || 'No roast content received';
             }
 
             async callLinkedInRoastAPI() {
-                console.log('📤 Making LinkedIn API call...');
+                addDebugInfo('Making LinkedIn API call...');
                 const linkedinUrl = this.linkedinUrl.value.trim();
+                const linkedinContent = this.linkedinContent.value.trim();
+                
+                const requestBody = {};
+                if (linkedinUrl) requestBody.url = linkedinUrl;
+                if (linkedinContent) requestBody.content = linkedinContent;
                 
                 const response = await fetch(`${this.getAPIBaseURL()}/api/roast/linkedin`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        url: linkedinUrl
-                    }),
+                    body: JSON.stringify(requestBody),
                 });
 
-                console.log('📥 LinkedIn API Response status:', response.status);
+                addDebugInfo(`LinkedIn API Response status: ${response.status}`);
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('❌ LinkedIn API Error response:', errorText);
-                    throw new Error(`LinkedIn API Error: ${response.status} - ${errorText}`);
+                    addDebugInfo(`LinkedIn API Error response: ${errorText}`);
+                    throw new Error(`API Error: ${response.status} - ${errorText}`);
                 }
 
                 const result = await response.json();
-                console.log('✅ LinkedIn API Success:', result);
+                addDebugInfo('LinkedIn API Success');
                 return result.roast || result.message || 'No roast content received';
             }
 
             getAPIBaseURL() {
-                // Check if we're in development or production
-                const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                // Use the same domain as the frontend but point to the backend API
+                // This assumes your backend is deployed at the same domain with /api prefix
+                const currentDomain = window.location.origin;
                 
-                if (isDevelopment) {
+                // If you're on localhost, use the local backend
+                if (currentDomain.includes('localhost') || currentDomain.includes('127.0.0.1')) {
                     return 'http://localhost:3001';
-                } else {
-                    // Replace with your actual Vercel backend URL
-                    return 'https://cv-roaster-api.vercel.app';
                 }
+                
+                // For production, use your actual backend URL
+                // You need to replace this with your actual Vercel backend URL
+                return 'https://cv-roaster-backend.vercel.app';
             }
 
             getMockCVRoast() {
@@ -803,16 +838,4 @@ You're a real person with real skills. Let that show! ✨`
                 this.loading.style.display = 'none';
                 this.result.style.display = 'block';
                 this.result.classList.add('error');
-                this.resultTitle.textContent = '❌ Error';
-                this.resultContent.textContent = message;
-                this.roastBtn.disabled = false;
-            }
-        }
-
-        // Initialize the app
-        document.addEventListener('DOMContentLoaded', () => {
-            new CVRoastBot();
-        });
-    </script>
-</body>
-</html>
+                this.resultTitle.textContent
