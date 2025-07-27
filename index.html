@@ -566,19 +566,116 @@
                 this.showLoading();
                 
                 try {
-                    // Simulate API call delay
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    // First, let's test if the backend is accessible
+                    const backendUrl = this.getAPIBaseURL();
+                    console.log('🔍 Testing backend at:', backendUrl);
+                    
+                    // Test backend connectivity
+                    const testResponse = await this.testBackend(backendUrl);
+                    console.log('🔍 Backend test result:', testResponse);
                     
                     let roast;
                     if (this.currentType === 'cv') {
-                        roast = this.getMockCVRoast();
+                        roast = await this.callCVRoastAPI();
                     } else {
-                        roast = this.getMockLinkedInRoast();
+                        roast = await this.callLinkedInRoastAPI();
                     }
                     
                     this.showResult(roast);
                 } catch (error) {
-                    this.showError(error.message);
+                    console.error('❌ API Error:', error);
+                    this.showError(`API Error: ${error.message}\n\nFalling back to demo mode...`);
+                    
+                    // Fallback to mock for demo purposes
+                    let mockRoast;
+                    if (this.currentType === 'cv') {
+                        mockRoast = this.getMockCVRoast();
+                    } else {
+                        mockRoast = this.getMockLinkedInRoast();
+                    }
+                    this.showResult(`[DEMO MODE - Backend not connected]\n\n${mockRoast}`);
+                }
+            }
+
+            async testBackend(baseUrl) {
+                try {
+                    const response = await fetch(`${baseUrl}/health`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        return { status: 'connected', data };
+                    } else {
+                        return { status: 'error', message: `HTTP ${response.status}` };
+                    }
+                } catch (error) {
+                    return { status: 'failed', error: error.message };
+                }
+            }
+
+            async callCVRoastAPI() {
+                console.log('📤 Making CV API call...');
+                const formData = new FormData();
+                formData.append('file', this.selectedFile);
+
+                const response = await fetch(`${this.getAPIBaseURL()}/api/roast/cv`, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                console.log('📥 CV API Response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ CV API Error response:', errorText);
+                    throw new Error(`CV API Error: ${response.status} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                console.log('✅ CV API Success:', result);
+                return result.roast || result.message || 'No roast content received';
+            }
+
+            async callLinkedInRoastAPI() {
+                console.log('📤 Making LinkedIn API call...');
+                const linkedinUrl = this.linkedinUrl.value.trim();
+                
+                const response = await fetch(`${this.getAPIBaseURL()}/api/roast/linkedin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: linkedinUrl
+                    }),
+                });
+
+                console.log('📥 LinkedIn API Response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ LinkedIn API Error response:', errorText);
+                    throw new Error(`LinkedIn API Error: ${response.status} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                console.log('✅ LinkedIn API Success:', result);
+                return result.roast || result.message || 'No roast content received';
+            }
+
+            getAPIBaseURL() {
+                // Check if we're in development or production
+                const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                
+                if (isDevelopment) {
+                    return 'http://localhost:3001';
+                } else {
+                    // Replace with your actual Vercel backend URL
+                    return 'https://cv-roaster-api.vercel.app';
                 }
             }
 
